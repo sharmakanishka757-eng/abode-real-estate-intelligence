@@ -1,0 +1,305 @@
+---
+description: Member 1 Location Intelligence rules for the ABODE real-estate intelligence project
+globs:
+  - location-service/**
+alwaysApply: false
+---
+
+# ABODE Real Estate Intelligence — Member 1 Rules
+
+## Project Context
+
+This is the ABODE Real Estate Intelligence project.
+
+The system is a team-based project with separate services:
+
+- frontend
+- api-gateway
+- location-service
+- environment-service
+- property-ai-service
+
+The repository is shared by the team.
+
+I am Member 1 and my responsibility is the Location Intelligence Service.
+
+## My Responsibility
+
+My primary responsibility is:
+
+- Geocoding
+- Coordinates
+- OpenStreetMap data
+- Nearby places
+- Schools
+- Colleges
+- Hospitals
+- Banks
+- ATMs
+- Restaurants
+- Parks
+- Police stations
+- Public transport where data is available
+- Distances
+- Routes
+- Travel time
+- Accessibility score
+- PostGIS spatial queries
+
+## Technology Stack
+
+Use the project-approved technologies:
+
+- Python
+- FastAPI
+- PostgreSQL
+- PostGIS
+- OpenStreetMap
+- Nominatim
+- Overpass API
+- OpenRouteService or the approved routing provider
+- GTFS where applicable
+
+Do not introduce a different framework or database without asking first.
+
+## Development Approach
+
+Follow a small-task development process:
+
+1. Understand the existing code.
+2. Explain what needs to be changed.
+3. Make the smallest necessary change.
+4. Run the application.
+5. Test the change.
+6. Fix errors.
+7. Only then move to the next feature.
+
+Do NOT build the entire application or entire backend in one step.
+
+Do NOT generate large amounts of code unless specifically requested.
+
+## Service Isolation
+
+Member 1 primarily works inside:
+
+location-service/
+
+Do not modify:
+
+- environment-service/
+- property-ai-service/
+- frontend/
+- api-gateway/
+
+unless the task explicitly requires an integration change.
+
+Do not overwrite another team member's implementation.
+
+## Initial Location Service
+
+The location-service should initially contain only the minimum required setup.
+
+The first milestone is:
+
+GET /health
+
+Expected response:
+
+{
+  "status": "ok"
+}
+
+Keep the initial implementation simple.
+
+## API Design
+
+Use FastAPI.
+
+Use clear REST-style endpoints.
+
+Validate request parameters.
+
+Return consistent JSON responses.
+
+Do not expose unnecessary internal implementation details.
+
+Keep API contracts stable once established.
+
+## Geocoding
+
+Use Nominatim for geocoding.
+
+Nominatim should be accessed through a dedicated client module.
+
+The client should:
+
+- accept an address
+- call Nominatim
+- extract latitude and longitude
+- extract the normalized address
+- return the application's internal format
+
+Do not put Nominatim HTTP logic directly into route handlers.
+
+Expected normalized location data should follow the project's agreed API contract.
+
+## OpenStreetMap and Overpass
+
+Use OpenStreetMap data for geographic and nearby-place information.
+
+Use one reusable Overpass client rather than creating separate clients for:
+
+- hospitals
+- schools
+- banks
+- restaurants
+- parks
+- police stations
+
+Normalize external place data into a consistent internal structure containing:
+
+- name
+- category
+- latitude
+- longitude
+- address
+- source
+
+Do not assume that every place category will always contain every field.
+
+## Database and PostGIS
+
+Use PostgreSQL with PostGIS for spatial data.
+
+Do not replace PostgreSQL/PostGIS with SQLite for the final project.
+
+Spatial queries should use PostGIS where appropriate.
+
+The project may contain location data such as:
+
+- property coordinates
+- place coordinates
+- distances
+- nearby places
+- transport locations
+
+Use appropriate geographic/spatial data types when implementing the database layer.
+
+## Routing and Travel Time
+
+Routing should provide information such as:
+
+- distance
+- duration
+- route information
+
+Do not calculate road travel distance using simple latitude/longitude differences.
+
+Use the approved routing provider for actual route distance and travel time.
+
+## Public Transport
+
+Use GTFS data where an appropriate feed is available.
+
+Do not invent transit schedules or routes.
+
+If data is unavailable, clearly represent that the information is unavailable.
+
+## Accessibility Score
+
+Accessibility scoring must be transparent and explainable.
+
+Do not create an unexplained AI-generated score.
+
+Any scoring formula must be documented and use clearly defined inputs.
+
+## External APIs
+
+External API calls must:
+
+- handle timeouts
+- handle HTTP errors
+- validate responses
+- avoid crashing the entire service
+- avoid exposing API keys
+- use environment variables for secrets
+- respect provider usage policies and rate limits
+
+Never hard-code API keys or secrets.
+
+Never commit .env files to Git.
+
+## Error Handling
+
+Return useful API errors.
+
+Do not silently hide failures.
+
+Distinguish between:
+
+- invalid user input
+- external API failure
+- unavailable data
+- database failure
+- unexpected application errors
+
+## Code Quality
+
+Prefer:
+
+- small functions
+- clear names
+- type hints
+- Pydantic models for API validation
+- reusable service/client modules
+- simple readable code
+
+Avoid:
+
+- unnecessary abstraction
+- duplicated API clients
+- hard-coded values
+- unused dependencies
+- premature optimization
+
+## Testing
+
+Every new feature should be tested before moving to the next feature.
+
+Prefer testing:
+
+- API endpoints
+- external API response normalization
+- validation
+- error handling
+- database/spatial queries
+
+Use Postman for manual API testing where appropriate.
+
+## Git Workflow
+
+Do not work directly on main.
+
+Member 1 should primarily work on:
+
+member1-location
+
+Use meaningful commits.
+
+Before making changes:
+
+- inspect the current branch
+- inspect existing code
+- avoid overwriting teammates' work
+
+Keep commits focused on one logical change.
+
+## Important Rule
+
+Before implementing a feature, first inspect the existing project structure and code.
+
+If requirements are unclear, ask for clarification instead of inventing architecture.
+
+Never rebuild or restructure the entire project without explicit instruction.
+
+The project should be developed incrementally and remain understandable to a beginner developer.
