@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 
 from nominatim_client import NominatimError, geocode_address
+from overpass_client import OverpassError, find_nearby_places
 
 app = FastAPI()
 
@@ -21,4 +22,42 @@ def geocode(address: str | None = None):
     try:
         return geocode_address(address)
     except NominatimError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.get("/nearby")
+def nearby(
+    latitude: str | None = None,
+    longitude: str | None = None,
+    radius: str | None = None,
+    category: str | None = None,
+):
+    if (
+        latitude is None
+        or longitude is None
+        or radius is None
+        or not category
+        or not category.strip()
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Query parameters latitude, longitude, radius, and category "
+                "are required."
+            ),
+        )
+
+    try:
+        return find_nearby_places(
+            float(latitude),
+            float(longitude),
+            int(radius),
+            category,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Latitude, longitude, and radius must be valid numbers.",
+        ) from exc
+    except OverpassError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
