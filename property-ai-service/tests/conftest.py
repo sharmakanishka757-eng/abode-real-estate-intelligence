@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 
 from app.database import Base, engine
 from app.main import app
+from app.models.preferences import UserPreference  # noqa: F401
 from app.models.property import Property  # noqa: F401
 
 

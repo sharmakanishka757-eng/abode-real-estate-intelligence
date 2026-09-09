@@ -5,7 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.database import Base, engine
-from app.models.property import Property  # noqa: F401  # registers the table on Base.metadata
+from app.models.preferences import UserPreference  # noqa: F401
+from app.models.property import Property  # noqa: F401  # registers tables on Base.metadata
+from app.routes.analysis import router as analysis_router
+from app.routes.preferences import router as preferences_router
 from app.routes.properties import router as properties_router
 
 
@@ -23,6 +26,8 @@ app = FastAPI(
 )
 
 app.include_router(properties_router)
+app.include_router(preferences_router)
+app.include_router(analysis_router)
 
 
 @app.get("/health")

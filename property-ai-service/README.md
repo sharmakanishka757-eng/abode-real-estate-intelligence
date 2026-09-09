@@ -2,9 +2,10 @@
 
 Member 3 service for the ABODE Real Estate Intelligence project.
 
-This service stores property listings and will later support property analysis
-and AI-based intelligence. The current milestones cover the FastAPI foundation,
-CRUD API, and property search. AI/ML is not implemented yet.
+This service stores property listings, searches them, and scores them against
+user preferences with a deterministic rule-based engine. Location and
+environment inputs are optional mock/structured scores for now. LLM/AI
+recommendation generation is a future milestone.
 
 ## Technology
 
@@ -21,9 +22,16 @@ property-ai-service/
         main.py              # FastAPI app, health check, startup table creation
         database.py          # SQLAlchemy engine, session, and FastAPI dependency
         models/property.py   # Property database model
+        models/preferences.py  # User preference profile
         schemas/property.py  # Pydantic create, update, search, and response schemas
+        schemas/preferences.py  # Preference create/update/response schemas
+        schemas/scoring.py   # Analyze request, location/environment score schemas
         routes/properties.py # REST routes for /properties and /properties/search
+        routes/preferences.py  # Preference CRUD
+        routes/analysis.py   # POST /properties/{id}/analyze
         services/property_search.py  # SQLAlchemy search filters
+        services/preference_weights.py  # Category weight normalization
+        services/property_scoring.py  # Rule-based match score and explanations
     scripts/seed_data.py     # Demo listings for local development
     tests/                   # Search and API tests
     requirements.txt
@@ -66,7 +74,7 @@ DATABASE_URL=postgresql://username:password@localhost:5432/abode
 Do not commit `.env` or real passwords.
 
 The database must exist before the service starts. On startup the service
-creates the `properties` table if it is missing.
+creates the `properties` and `user_preferences` tables if they are missing.
 
 ## Run the FastAPI application
 
@@ -91,6 +99,11 @@ Interactive docs: `http://127.0.0.1:8000/docs`.
 | GET | `/properties/{property_id}` | Get one property listing |
 | PUT | `/properties/{property_id}` | Update a property listing |
 | DELETE | `/properties/{property_id}` | Delete a property listing |
+| POST | `/properties/{property_id}/analyze` | Personalized match score for a listing |
+| POST | `/preferences` | Create a user preference profile |
+| GET | `/preferences/{user_id}` | Get one user's preferences |
+| PUT | `/preferences/{user_id}` | Update one user's preferences |
+| DELETE | `/preferences/{user_id}` | Delete one user's preferences |
 
 Example health response:
 
@@ -171,6 +184,126 @@ python scripts/seed_data.py
 
 The script uses the same `DATABASE_URL` as the API. Running it again skips
 titles that already exist, so it does not duplicate the same demo rows.
+
+## User preferences
+
+Each `user_id` has one preference profile in this milestone. There is no
+authentication yet; `user_id` is a client-supplied string.
+
+| Method | Path | Description |
+| ------ | ---- | ----------- |
+| POST | `/preferences` | Create preferences (`201`, or `409` if that user already has a profile) |
+| GET | `/preferences/{user_id}` | Fetch preferences |
+| PUT | `/preferences/{user_id}` | Partial update |
+| DELETE | `/preferences/{user_id}` | Delete preferences |
+
+Stored fields include budget range, preferred listing type (`buy` / `rent`),
+preferred property types (`apartment`, `house`, `land`), optional minimum
+bedrooms/area, and category priority weights:
+
+- `safety_weight`
+- `transport_weight`
+- `healthcare_weight`
+- `education_weight`
+- `environment_weight`
+- `water_utilities_weight`
+- `flood_risk_weight`
+- `amenities_weight`
+- `noise_connectivity_weight`
+
+Weights are priorities, not percentages. They do not need to sum to 100. The
+scoring engine normalizes them (for example 5, 3, 2 → 0.5, 0.3, 0.2). Each
+weight must be between 0 and 10. At least one weight must be greater than zero.
+
+## Personalized scoring
+
+`POST /properties/{property_id}/analyze` scores a listing against the request
+body. The engine is **deterministic and rule-based**. It is designed so real
+Location Intelligence and Environment Intelligence services can be plugged in
+later. It does **not** call those services, and it does **not** use an LLM.
+
+Request body:
+
+```json
+{
+  "user_preferences": {
+    "min_budget": 10000,
+    "max_budget": 25000,
+    "preferred_listing_type": "rent",
+    "preferred_property_types": ["apartment"],
+    "min_bedrooms": 2,
+    "min_area": 800,
+    "safety_weight": 5,
+    "transport_weight": 3,
+    "healthcare_weight": 2,
+    "education_weight": 1,
+    "environment_weight": 1,
+    "water_utilities_weight": 1,
+    "flood_risk_weight": 2,
+    "amenities_weight": 1,
+    "noise_connectivity_weight": 1
+  },
+  "location_scores": {
+    "safety": 90,
+    "transport": 85,
+    "healthcare": 80,
+    "education": 70,
+    "amenities": 88,
+    "noise_connectivity": 75
+  },
+  "environment_scores": {
+    "environment": 80,
+    "water_utilities": 65,
+    "flood_risk": 90
+  }
+}
+```
+
+`location_scores` and `environment_scores` are optional. Every category value
+must be between 0 and 100. For `flood_risk`, **100 means low risk / favorable**
+and **0 means high risk / unfavorable**.
+
+The match score is 0–100 (two decimal places) and combines:
+
+- Budget, listing type, property type, bedrooms, and area compatibility
+- Weighted location/environment category scores using normalized preferences
+
+Recommendation labels:
+
+| Score | Label |
+| ----- | ----- |
+| 90–100 | Excellent Match |
+| 75–89.99 | Good Match |
+| 60–74.99 | Moderate Match |
+| below 60 | Low Match |
+
+Explanations (`summary`, `positive_factors`, `caution_factors`) are generated
+from the same rules. They are not AI-generated.
+
+The response includes the existing `PropertyResponse` object plus scoring
+fields. Example:
+
+```json
+{
+  "property_id": 1,
+  "match_score": 87.50,
+  "recommendation": "Good Match",
+  "summary": "Good overall match based on your selected preferences.",
+  "positive_factors": [
+    "Property fits within your preferred budget.",
+    "Property meets your minimum bedroom requirement.",
+    "Transport is a strong match."
+  ],
+  "caution_factors": [
+    "Environment score is relatively low and may require further consideration."
+  ],
+  "category_scores": {
+    "safety": 90,
+    "transport": 85,
+    "healthcare": 80
+  }
+}
+```
 
 ## Tests
 
