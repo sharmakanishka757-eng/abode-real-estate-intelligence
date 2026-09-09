@@ -4,7 +4,9 @@ Member 3 service for the ABODE Real Estate Intelligence project.
 
 This service stores property listings, searches them, and scores them against
 user preferences with a deterministic rule-based engine. Location and
-environment inputs are optional mock/structured scores for now. LLM/AI
+environment scores come from an integration layer. Today that layer uses
+deterministic mocks (or explicit request overrides). It is built so Member 1
+and Member 2 can later connect without rewriting the scoring engine. LLM/AI
 recommendation generation is a future milestone.
 
 ## Technology
@@ -26,12 +28,14 @@ property-ai-service/
         schemas/property.py  # Pydantic create, update, search, and response schemas
         schemas/preferences.py  # Preference create/update/response schemas
         schemas/scoring.py   # Analyze request, location/environment score schemas
+        schemas/intelligence.py  # Location/environment intelligence contracts
         routes/properties.py # REST routes for /properties and /properties/search
         routes/preferences.py  # Preference CRUD
         routes/analysis.py   # POST /properties/{id}/analyze
         services/property_search.py  # SQLAlchemy search filters
         services/preference_weights.py  # Category weight normalization
         services/property_scoring.py  # Rule-based match score and explanations
+        services/intelligence_integration.py  # Location/environment boundary (mock today)
     scripts/seed_data.py     # Demo listings for local development
     tests/                   # Search and API tests
     requirements.txt
@@ -259,9 +263,14 @@ Request body:
 }
 ```
 
-`location_scores` and `environment_scores` are optional. Every category value
-must be between 0 and 100. For `flood_risk`, **100 means low risk / favorable**
-and **0 means high risk / unfavorable**.
+`location_scores` and `environment_scores` are optional. If you send them, the
+analyze endpoint uses those values (useful in tests). If you omit them, the
+**integration layer** supplies deterministic mock intelligence. Every category
+value must be between 0 and 100. For `flood_risk`, **100 means low risk /
+favorable** and **0 means high risk / unfavorable**.
+
+**Mock intelligence is used only for development/testing. It is not real
+location or environmental data.**
 
 The match score is 0–100 (two decimal places) and combines:
 
@@ -304,6 +313,79 @@ fields. Example:
   }
 }
 ```
+
+## Location and environment integration
+
+Member 3 scoring does not call other services yet. Analyze uses
+`app/services/intelligence_integration.py` as the only boundary:
+
+```text
+analyze route
+    → resolve_intelligence()   (explicit scores or mock)
+    → property_scoring.py      (unchanged match algorithm)
+    → recommendation + explanation
+```
+
+| Source | When it is used |
+| ------ | --------------- |
+| Explicit `location_scores` / `environment_scores` in the request | Always preferred when present |
+| Deterministic mock from the integration layer | When that block is omitted |
+
+The mock is derived from the property's city and coordinates so the same
+listing always gets the same scores. It is **not** random and **not** real
+neighborhood data.
+
+### Score meaning
+
+For every category, **0 = unfavorable** and **100 = favorable**.
+
+`flood_risk` uses the same direction: **100 = low flood/waterlogging risk**,
+**0 = high risk**.
+
+### Future service contracts
+
+These contracts are documentation only. This milestone does **not** implement
+HTTP clients.
+
+Member 1 — Location Intelligence:
+
+```text
+GET /api/location/{property_id}
+```
+
+```json
+{
+  "property_id": 123,
+  "scores": {
+    "safety": 85,
+    "transport": 78,
+    "healthcare": 90,
+    "education": 75,
+    "amenities": 88,
+    "noise_connectivity": 72
+  }
+}
+```
+
+Member 2 — Environment Intelligence:
+
+```text
+GET /api/environment/{property_id}
+```
+
+```json
+{
+  "property_id": 123,
+  "scores": {
+    "environment": 80,
+    "water_utilities": 75,
+    "flood_risk": 90
+  }
+}
+```
+
+When those APIs exist, only `intelligence_integration.py` should change.
+`property_scoring.py` should keep receiving the same structured scores.
 
 ## Tests
 

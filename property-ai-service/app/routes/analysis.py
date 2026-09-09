@@ -7,6 +7,7 @@ from app.database import get_db
 from app.models.property import Property
 from app.schemas.property import PropertyResponse
 from app.schemas.scoring import PropertyAnalyzeRequest, PropertyAnalyzeResponse
+from app.services.intelligence_integration import resolve_intelligence
 from app.services.property_scoring import score_property
 
 router = APIRouter(tags=["analysis"])
@@ -29,6 +30,11 @@ def analyze_property(
         )
 
     area = float(property_item.area) if property_item.area is not None else None
+    intelligence = resolve_intelligence(
+        property_item,
+        location_scores=payload.location_scores,
+        environment_scores=payload.environment_scores,
+    )
     result = score_property(
         price=float(property_item.price),
         listing_type=property_item.listing_type,
@@ -36,8 +42,8 @@ def analyze_property(
         bedrooms=property_item.bedrooms,
         area=area,
         preferences=payload.user_preferences,
-        location_scores=payload.location_scores,
-        environment_scores=payload.environment_scores,
+        location_scores=intelligence.location_scores(),
+        environment_scores=intelligence.environment_scores(),
     )
     return PropertyAnalyzeResponse(
         property_id=property_item.id,
