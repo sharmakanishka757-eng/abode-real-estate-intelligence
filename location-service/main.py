@@ -50,6 +50,14 @@ def nearby(
         )
 
     try:
+        limit_value = int(limit)
+
+        if limit_value <= 0:
+            raise HTTPException(
+               status_code=400,
+                detail="Limit must be greater than 0.",
+            )
+
         places = find_nearby_places(
             float(latitude),
             float(longitude),
@@ -57,7 +65,7 @@ def nearby(
             category,
         )
 
-        return places[:int(limit)]
+        return places[:limit_value]
 
     except ValueError as exc:
         raise HTTPException(
