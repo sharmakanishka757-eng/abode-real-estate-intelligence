@@ -3,8 +3,8 @@
 Member 3 service for the ABODE Real Estate Intelligence project.
 
 This service stores property listings and will later support property analysis
-and AI-based intelligence. This milestone covers the FastAPI foundation and
-CRUD API only. AI/ML is not implemented yet.
+and AI-based intelligence. The current milestones cover the FastAPI foundation,
+CRUD API, and property search. AI/ML is not implemented yet.
 
 ## Technology
 
@@ -21,9 +21,11 @@ property-ai-service/
         main.py              # FastAPI app, health check, startup table creation
         database.py          # SQLAlchemy engine, session, and FastAPI dependency
         models/property.py   # Property database model
-        schemas/property.py  # Pydantic create, update, and response schemas
-        routes/properties.py # REST routes for /properties
-        services/            # Reserved for later analysis / AI logic
+        schemas/property.py  # Pydantic create, update, search, and response schemas
+        routes/properties.py # REST routes for /properties and /properties/search
+        services/property_search.py  # SQLAlchemy search filters
+    scripts/seed_data.py     # Demo listings for local development
+    tests/                   # Search and API tests
     requirements.txt
     .env.example
     Dockerfile
@@ -85,6 +87,7 @@ Interactive docs: `http://127.0.0.1:8000/docs`.
 | GET | `/health` | Service health check |
 | POST | `/properties` | Create a property listing |
 | GET | `/properties` | List all property listings |
+| GET | `/properties/search` | Search listings with optional filters |
 | GET | `/properties/{property_id}` | Get one property listing |
 | PUT | `/properties/{property_id}` | Update a property listing |
 | DELETE | `/properties/{property_id}` | Delete a property listing |
@@ -97,3 +100,84 @@ Example health response:
   "service": "property-ai-service"
 }
 ```
+
+## Property search
+
+`GET /properties/search` filters listings in the database. Every query
+parameter is optional. Combining parameters applies all of them together.
+City matching is case-insensitive. An empty result is HTTP 200 with
+`"results": []`, not 404.
+
+Supported filters:
+
+| Parameter | Meaning |
+| --------- | ------- |
+| `city` | Case-insensitive city match |
+| `listing_type` | `buy` or `rent` |
+| `property_type` | `apartment`, `house`, or `land` |
+| `min_price` | Price greater than or equal to this value |
+| `max_price` | Price less than or equal to this value |
+| `min_bedrooms` | Bedrooms greater than or equal to this value |
+| `max_bedrooms` | Bedrooms less than or equal to this value |
+| `min_area` | Area greater than or equal to this value |
+| `max_area` | Area less than or equal to this value |
+| `skip` | Number of matching rows to skip (default 0) |
+| `limit` | Page size (default 20, maximum 100) |
+
+Example requests:
+
+```text
+GET /properties/search?city=Jaipur
+GET /properties/search?city=Jaipur&listing_type=rent
+GET /properties/search?city=Jaipur&property_type=apartment&max_price=25000
+GET /properties/search?city=Jaipur&listing_type=buy&min_bedrooms=2
+GET /properties/search?city=Jaipur&property_type=apartment&max_price=25000&min_bedrooms=2
+```
+
+Example response:
+
+```json
+{
+  "total": 3,
+  "skip": 0,
+  "limit": 20,
+  "results": [
+    {
+      "id": 1,
+      "title": "2BHK apartment in Vaishali Nagar",
+      "property_type": "apartment",
+      "listing_type": "rent",
+      "price": 18000.00,
+      "city": "Jaipur"
+    }
+  ]
+}
+```
+
+Each item in `results` uses the same `PropertyResponse` fields as the CRUD
+endpoints.
+
+## Demo seed data
+
+The seed script inserts about 10 fictional Jaipur-area listings so search can
+be tried locally. **This is development/demo data only.** It is not real
+inventory and should not be treated as actual prices or availability.
+
+From `property-ai-service/`:
+
+```bash
+python scripts/seed_data.py
+```
+
+The script uses the same `DATABASE_URL` as the API. Running it again skips
+titles that already exist, so it does not duplicate the same demo rows.
+
+## Tests
+
+From `property-ai-service/`:
+
+```bash
+pytest
+```
+
+Tests use a temporary SQLite database and do not require PostgreSQL.

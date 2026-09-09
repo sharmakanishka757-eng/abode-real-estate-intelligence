@@ -1,4 +1,4 @@
 """Business logic helpers for the property-ai-service.
 
-AI analysis modules will be added here in a later milestone.
+Search lives here. AI analysis modules will be added in a later milestone.
 """

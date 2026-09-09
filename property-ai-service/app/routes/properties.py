@@ -1,11 +1,20 @@
 """REST routes for property listings."""
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.property import Property
-from app.schemas.property import PropertyCreate, PropertyResponse, PropertyUpdate
+from app.schemas.property import (
+    PropertyCreate,
+    PropertyResponse,
+    PropertySearchQuery,
+    PropertySearchResponse,
+    PropertyUpdate,
+)
+from app.services.property_search import search_properties
 
 router = APIRouter(tags=["properties"])
 
@@ -26,6 +35,20 @@ def create_property(payload: PropertyCreate, db: Session = Depends(get_db)) -> P
 @router.get("/properties", response_model=list[PropertyResponse])
 def list_properties(db: Session = Depends(get_db)) -> list[Property]:
     return db.query(Property).order_by(Property.id).all()
+
+
+@router.get("/properties/search", response_model=PropertySearchResponse)
+def search_property_listings(
+    filters: Annotated[PropertySearchQuery, Query()],
+    db: Session = Depends(get_db),
+) -> PropertySearchResponse:
+    total, results = search_properties(db, filters)
+    return PropertySearchResponse(
+        total=total,
+        skip=filters.skip,
+        limit=filters.limit,
+        results=results,
+    )
 
 
 @router.get("/properties/{property_id}", response_model=PropertyResponse)

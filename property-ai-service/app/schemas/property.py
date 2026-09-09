@@ -66,3 +66,24 @@ class PropertyResponse(BaseModel):
     bathrooms: Optional[int] = None
     description: Optional[str] = None
     created_at: datetime
+
+
+class PropertySearchQuery(BaseModel):
+    city: Optional[str] = None
+    listing_type: Optional[ListingType] = None
+    property_type: Optional[PropertyType] = None
+    min_price: Optional[Decimal] = Field(default=None, ge=0)
+    max_price: Optional[Decimal] = Field(default=None, ge=0)
+    min_bedrooms: Optional[int] = Field(default=None, ge=0)
+    max_bedrooms: Optional[int] = Field(default=None, ge=0)
+    min_area: Optional[Decimal] = Field(default=None, ge=0)
+    max_area: Optional[Decimal] = Field(default=None, ge=0)
+    skip: int = Field(default=0, ge=0)
+    limit: int = Field(default=20, ge=1, le=100)
+
+
+class PropertySearchResponse(BaseModel):
+    total: int
+    skip: int
+    limit: int
+    results: list[PropertyResponse]
