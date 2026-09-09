@@ -102,11 +102,40 @@ def route(
         )
 
     try:
+        start_latitude_value = float(start_latitude)
+        start_longitude_value = float(start_longitude)
+        end_latitude_value = float(end_latitude)
+        end_longitude_value = float(end_longitude)
+
+        if not -90 <= start_latitude_value <= 90:
+            raise HTTPException(
+                status_code=400,
+                detail="Start latitude must be between -90 and 90.",
+            )
+
+        if not -180 <= start_longitude_value <= 180:
+            raise HTTPException(
+                status_code=400,
+                detail="Start longitude must be between -180 and 180.",
+            )
+
+        if not -90 <= end_latitude_value <= 90:
+            raise HTTPException(
+                status_code=400,
+                detail="End latitude must be between -90 and 90.",
+            )
+
+        if not -180 <= end_longitude_value <= 180:
+            raise HTTPException(
+                status_code=400,
+                detail="End longitude must be between -180 and 180.",
+            )
+
         result = get_route(
-            float(start_latitude),
-            float(start_longitude),
-            float(end_latitude),
-            float(end_longitude),
+            start_latitude_value,
+            start_longitude_value,
+            end_latitude_value,
+            end_longitude_value,
             profile,
         )
 
