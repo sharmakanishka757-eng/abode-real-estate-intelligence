@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import urllib.error
 import urllib.parse
@@ -32,6 +33,33 @@ CATEGORY_TAGS = {
 
 class OverpassError(Exception):
     """Raised when a nearby-places query with Overpass fails."""
+
+
+EARTH_RADIUS_METERS = 6_371_000
+
+
+def calculate_distance_meters(
+    latitude1: float,
+    longitude1: float,
+    latitude2: float,
+    longitude2: float,
+) -> float:
+    """Return the straight-line distance between two points in meters."""
+    lat1 = math.radians(latitude1)
+    lon1 = math.radians(longitude1)
+    lat2 = math.radians(latitude2)
+    lon2 = math.radians(longitude2)
+
+    delta_latitude = lat2 - lat1
+    delta_longitude = lon2 - lon1
+
+    haversine = (
+        math.sin(delta_latitude / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(delta_longitude / 2) ** 2
+    )
+    central_angle = 2 * math.asin(math.sqrt(haversine))
+
+    return EARTH_RADIUS_METERS * central_angle
 
 
 def find_nearby_places(
@@ -88,7 +116,7 @@ def find_nearby_places(
     if not isinstance(elements, list):
         raise OverpassError("Overpass response is missing a valid 'elements' list.")
 
-    return _parse_elements(elements, category)
+    return _parse_elements(elements, category, latitude, longitude)
 
 
 def _validate_inputs(
@@ -149,7 +177,12 @@ out center;
 """
 
 
-def _parse_elements(elements: list, category: str) -> list[dict]:
+def _parse_elements(
+    elements: list,
+    category: str,
+    latitude: float,
+    longitude: float,
+) -> list[dict]:
     places = []
     normalized_category = category.strip().lower()
 
@@ -161,6 +194,15 @@ def _parse_elements(elements: list, category: str) -> list[dict]:
         place_latitude, place_longitude = coordinates
         tags = element.get("tags", {})
         name = tags.get("name")
+        distance_meters = round(
+            calculate_distance_meters(
+                latitude,
+                longitude,
+                place_latitude,
+                place_longitude,
+            ),
+            2,
+        )
 
         places.append(
             {
@@ -168,6 +210,7 @@ def _parse_elements(elements: list, category: str) -> list[dict]:
                 "latitude": place_latitude,
                 "longitude": place_longitude,
                 "category": normalized_category,
+                "distance_meters": distance_meters,
             }
         )
 
