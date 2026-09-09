@@ -214,7 +214,7 @@ def _parse_elements(
             }
         )
 
-    return places
+    return sorted(places, key=lambda place: place["distance_meters"])
 
 
 def _extract_coordinates(element: dict) -> tuple[float, float] | None:
