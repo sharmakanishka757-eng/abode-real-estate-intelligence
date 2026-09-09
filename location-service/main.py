@@ -31,33 +31,38 @@ def nearby(
     longitude: str | None = None,
     radius: str | None = None,
     category: str | None = None,
+    limit: str | None = None,
 ):
     if (
         latitude is None
         or longitude is None
         or radius is None
+        or limit is None
         or not category
         or not category.strip()
     ):
         raise HTTPException(
             status_code=400,
             detail=(
-                "Query parameters latitude, longitude, radius, and category "
+                "Query parameters latitude, longitude, radius, category, and limit "
                 "are required."
             ),
         )
 
     try:
-        return find_nearby_places(
+        places = find_nearby_places(
             float(latitude),
             float(longitude),
             int(radius),
             category,
         )
+
+        return places[:int(limit)]
+
     except ValueError as exc:
         raise HTTPException(
             status_code=400,
-            detail="Latitude, longitude, and radius must be valid numbers.",
+            detail="Latitude, longitude, radius, and limit must be valid numbers.",
         ) from exc
     except OverpassError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
