@@ -7,6 +7,8 @@ from nominatim_client import NominatimError, geocode_address
 from overpass_client import OverpassError, find_nearby_places
 from ors_client import ORSError, get_route
 from nearby_routes import find_nearby_places_with_routes
+from accessibility import build_accessibility_data
+from accessibility_places import find_accessibility_places
 
 app = FastAPI()
 
@@ -55,7 +57,7 @@ def nearby(
         )
 
     try:
-        limit_value = int(limit)
+        limit_value = 1
 
         if limit_value <= 0:
             raise HTTPException(
@@ -307,3 +309,69 @@ def nearby_routes(
             status_code=400,
             detail=str(exc),
         )
+
+@app.get("/accessibility")
+def accessibility(
+    latitude: str | None = None,
+    longitude: str | None = None,
+    radius: str | None = None,
+):
+    if (
+        latitude is None
+        or longitude is None
+        or radius is None
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Query parameters latitude, longitude, "
+                "and radius are required."
+            ),
+        )
+
+    try:
+        latitude_value = float(latitude)
+        longitude_value = float(longitude)
+        radius_value = int(radius)
+
+        if not -90 <= latitude_value <= 90:
+            raise HTTPException(
+                status_code=400,
+                detail="Latitude must be between -90 and 90.",
+            )
+
+        if not -180 <= longitude_value <= 180:
+            raise HTTPException(
+                status_code=400,
+                detail="Longitude must be between -180 and 180.",
+            )
+
+        if radius_value <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Radius must be greater than 0.",
+            )
+
+        nearby_places = find_accessibility_places(
+            latitude_value,
+            longitude_value,
+            radius_value,
+        )
+
+        return build_accessibility_data(
+            nearby_places,
+            latitude_value,
+            longitude_value,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Latitude, longitude, and radius must be valid numbers.",
+        ) from exc
+
+    except OverpassError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
