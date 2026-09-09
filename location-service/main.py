@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException
 from nominatim_client import NominatimError, geocode_address
 from overpass_client import OverpassError, find_nearby_places
 from ors_client import ORSError, get_route
+from nearby_routes import find_nearby_places_with_routes
 
 app = FastAPI()
 
@@ -226,6 +227,82 @@ def travel_time(
         ) from exc
 
     except ORSError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        )
+    
+@app.get("/nearby-routes")
+def nearby_routes(
+    latitude: str | None = None,
+    longitude: str | None = None,
+    radius: str | None = None,
+    category: str | None = None,
+    limit: str | None = None,
+    profile: str = "driving-car",
+):
+    if (
+        latitude is None
+        or longitude is None
+        or radius is None
+        or limit is None
+        or not category
+        or not category.strip()
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Query parameters latitude, longitude, radius, "
+                "category, and limit are required."
+            ),
+        )
+
+    try:
+        latitude_value = float(latitude)
+        longitude_value = float(longitude)
+        radius_value = int(radius)
+        limit_value = int(limit)
+
+        if not -90 <= latitude_value <= 90:
+            raise HTTPException(
+                status_code=400,
+                detail="Latitude must be between -90 and 90.",
+            )
+
+        if not -180 <= longitude_value <= 180:
+            raise HTTPException(
+                status_code=400,
+                detail="Longitude must be between -180 and 180.",
+            )
+
+        if radius_value <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Radius must be greater than 0.",
+            )
+
+        if limit_value <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Limit must be greater than 0.",
+            )
+
+        return find_nearby_places_with_routes(
+            latitude_value,
+            longitude_value,
+            radius_value,
+            category,
+            limit_value,
+            profile,
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Latitude, longitude, radius, and limit must be valid numbers.",
+        ) from exc
+
+    except (OverpassError, ORSError) as exc:
         raise HTTPException(
             status_code=400,
             detail=str(exc),
