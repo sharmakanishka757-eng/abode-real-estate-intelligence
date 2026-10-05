@@ -57,7 +57,7 @@ def nearby(
         )
 
     try:
-        limit_value = 1
+        limit_value = int(limit)
 
         if limit_value <= 0:
             raise HTTPException(
