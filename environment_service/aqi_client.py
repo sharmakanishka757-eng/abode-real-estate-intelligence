@@ -1,3 +1,5 @@
+import requests
+from environment_service.database import get_connection
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -215,14 +217,18 @@ def get_clean_air_quality(
 # HOURLY SENSOR DATA
 # ============================================================
 
+
 def get_hourly_data(
     sensor_id: int,
     datetime_from: str,
     datetime_to: str
 ) -> dict:
     """
-    Get hourly average measurements for one sensor.
+    Get hourly average measurements for one OpenAQ sensor.
+    Retries temporary network failures and handles slow responses.
     """
+    import time
+    import requests
 
     api_key = os.getenv("OPENAQ_API_KEY")
 
@@ -241,35 +247,49 @@ def get_hourly_data(
         "limit": 100
     }
 
-    response = requests.get(
-        url,
-        headers=headers,
-        params=params,
-        timeout=10
-    )
+    last_error = None
 
-    response.raise_for_status()
+    for attempt in range(3):
+        try:
+            response = requests.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=(5, 30)
+            )
 
-    data = response.json()
+            response.raise_for_status()
+            data = response.json()
 
-    cleaned_results = []
+            cleaned_results = []
 
-    for item in data["results"]:
+            for item in data.get("results", []):
+                cleaned_results.append({
+                    "value": item["value"],
+                    "unit": item["parameter"]["units"],
+                    "parameter": item["parameter"]["name"],
+                    "datetime_from": item["period"]["datetimeFrom"]["local"],
+                    "datetime_to": item["period"]["datetimeTo"]["local"],
+                    "coverage": item["coverage"]["percentCoverage"]
+                })
 
-        cleaned_results.append({
-            "value": item["value"],
-            "unit": item["parameter"]["units"],
-            "parameter": item["parameter"]["name"],
-            "datetime_from": item["period"]["datetimeFrom"]["local"],
-            "datetime_to": item["period"]["datetimeTo"]["local"],
-            "coverage": item["coverage"]["percentCoverage"]
-        })
+            return {
+                "sensor_id": sensor_id,
+                "records_found": data["meta"]["found"],
+                "data": cleaned_results
+            }
 
-    return {
-        "sensor_id": sensor_id,
-        "records_found": data["meta"]["found"],
-        "data": cleaned_results
-    }
+        except (requests.RequestException, ValueError) as exc:
+            last_error = exc
+
+            if attempt < 2:
+                time.sleep(1 + attempt * 2)
+
+    raise RuntimeError(
+        f"OpenAQ hourly request failed for sensor {sensor_id} "
+        f"after 3 attempts: {last_error}"
+    ) from last_error
+
 
 
 # ============================================================
@@ -909,6 +929,60 @@ def get_aqi_by_coordinates(
     overall_aqi = calculate_overall_aqi(
         sub_indices
     )
+        # Save AQI result to PostgreSQL
+    connection = get_connection()
+
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute(
+                """
+                INSERT INTO air_quality (
+                    latitude,
+                    longitude,
+                    station_id,
+                    station_name,
+                    distance_km,
+                    aqi,
+                    category,
+                    dominant_pollutant,
+                    pm25,
+                    pm10,
+                    no2,
+                    so2,
+                    o3,
+                    co,
+                    recorded_at,
+                    source
+                )
+                VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s
+                )
+                """,
+                (
+                    latitude,
+                    longitude,
+                    station["location_id"],
+                    station["name"],
+                    station["distance_km"],
+                    overall_aqi["aqi"],
+                    overall_aqi["category"],
+                    overall_aqi["dominant_pollutant"],
+                    sub_indices.get("pm25", {}).get("average"),
+                    sub_indices.get("pm10", {}).get("average"),
+                    sub_indices.get("no2", {}).get("average"),
+                    sub_indices.get("so2", {}).get("average"),
+                    sub_indices.get("o3", {}).get("average"),
+                    sub_indices.get("co", {}).get("average"),
+                    datetime_to,
+                    "OpenAQ",
+                ),
+            )
+
+        connection.commit()
+
+    finally:
+        connection.close()
 
     return {
         "location": {
