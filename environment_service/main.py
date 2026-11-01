@@ -1,10 +1,16 @@
+
 from fastapi import FastAPI
 
 from environment_service.weather_client import get_weather
 from environment_service.aqi_client import get_aqi_by_coordinates
+from environment_service.crime_api import router as crime_router
 
 
-app = FastAPI()
+app = FastAPI(
+    title="ABODE Environment Intelligence API",
+    description="Weather, Air Quality and Crime Intelligence services",
+    version="1.0.0"
+)
 
 
 @app.get("/health")
@@ -20,3 +26,7 @@ def weather(latitude: float, longitude: float):
 @app.get("/aqi")
 def aqi(latitude: float, longitude: float):
     return get_aqi_by_coordinates(latitude, longitude)
+
+
+# Register Crime Intelligence routes.
+app.include_router(crime_router)
